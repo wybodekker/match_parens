@@ -11,12 +11,13 @@ Help=
 = Synopsis
 match_parens [filename]	
 
-= Options
--p,--pairs=S	set matching pairs to S (default: |{}[]()""“”''‘’|)
--n,--number=N	set number of mismatching characters shown to N (default: 10)
--l,--latex	convert |``...''| to |“...”| before testing
+== Options
+-h		print this help and exit
+-H,--help	print full documentation and exit
 -V,--version	print version and exit
--h,--help	print short help information and exit
+-l,--latex	convert ``...'' to “...” before testing
+-n,--number=N	set number of mismatching characters shown to N (default: 10)
+-p,--pairs=S	set matching pairs to S (default: {}[]()""“”''‘’)
    --test	do an internal test and exit
 
 = Description
@@ -117,54 +118,49 @@ DOC
 
 require 'optparse'
 
-# - print a newline, if newline is true,
-# - print the message if not nil,
-# - then exit with the exitvalue
-def quit(mess=nil,exitvalue=0)
-   handle = exitvalue == 0 ? STDOUT : STDERR
-   handle.puts (exitvalue > 0? mess.err : mess) if mess
-   exit(exitvalue)
-end
-
 number, input, latex, lineno,  s,  html,  test,  parenstext =
     10, STDIN, false,      0, '', false, false, %q{{}[]()""“”''‘’}
 
-ARGV.options do |opt|
-  opt.banner = "#{MYNAME} - find mismatches of parentheses, braces, (angle) brackets, in texts\n"
-  opt.on('-h',
+ARGV.options do |opts|
+  opts.banner = "#{MYNAME} - find mismatches of parentheses, braces, (angle) brackets, in texts\n"
+  opts.separator ''
+  opts.on('-h',
     'print this help and exit') do
-      quit opt.to_s.sub(/^ *-I\n/,'').gsub(/                 /,'')
+      puts opts.to_s.sub(/^ *-I\n/,'').gsub(/                 /,'')
+      exit
     end
-  opt.on('--help',
+  opts.on('-H','--help',
     'print full documentation and exit') do
-    quit Help
+      puts Help
+      exit
     end
-  opt.on('-V','--version',
+  opts.on('-V','--version',
     'print version and exit') do
-      quit Version
+      puts Version
+      exit
     end
-  opt.on('-l','--latex',
+  opts.on('-l','--latex',
     'convert ``...'' to “...” before testing') do
       latex=true
     end
-  opt.on('-n','--number=N',Integer,
+  opts.on('-n','--number=N',Integer,
     "set number of mismatching characters shown to N (default: #{number})"
   ) do |v|
       number = v
     end
-  opt.on('-p','--pairs=S',String,
+  opts.on('-p','--pairs=S',String,
     "set matching pairs to S (default: #{parenstext})"
   ) do |v|
       parenstext = v
     end
-  opt.on('--test',
+  opts.on('--test',
     'do an internal test and exit') do
       input = DATA
       test = true
     end
-  opt.on('-I') do system("instscript #{MYNAME}"); exit; end
-  opt.parse!
-end or quit("Option parsing error")
+  opts.on('-I') do system("instscript #{MYNAME}"); exit; end
+  opts.parse!
+end or exit 1
 
 parenshtml = parenstext =~ /<>/ ? parenstext : parenstext + '<>'
 parens = parenstext
