@@ -1,8 +1,8 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 
- MYNAME = File.basename($0)
-Version = '1.43'
+ Myname = File.basename($0)
+Version = '1.45'
 
 Help=
 <<'DOC'
@@ -17,7 +17,7 @@ match_parens [filename]
 -V,--version	print version and exit
 -l,--latex	convert ``...'' to “...” before testing
 -n,--number=N	set number of mismatching characters shown to N (default: 10)
--p,--pairs=S	set matching pairs to S (default: {}[]()""“”''‘’)
+-p,--pairs=S	set matching pairs to S (default: {}[]()“”«»‘’""'')
    --test	do an internal test and exit
 
 = Description
@@ -50,7 +50,7 @@ supposed to start with |<html>| or |=begin rdoc| and to end with
 -h,--help	
 	print short help information and exit.
 -H,--Help	
-	print full documentation and exit.
+	print full documentation via less and exit.
 -V,--version	
 	print this script's version and exit.
 -l,--latex	
@@ -59,8 +59,9 @@ supposed to start with |<html>| or |=begin rdoc| and to end with
 	Set number of mismatching characters shown to N. By default, only the
 	first 10 are shown.
 -p,--pairs=S	
-	Set matching pairs to S (default: |{}[]()""“”''‘’|). For example, if you
-	want to look for mismatching ASCII single quotes /only/, use |--pairs="''"|.
+	Set matching pairs to S (default: |{}[]()“”''«»""‘’|). For
+	example, if you want to look for mismatching ASCII single quotes
+	/only/, use |--pairs="''"|.
 	Or, if you want to match braces and guillemets only, use |-p «»|.
 	Note that if html is detected in your text, |<>| is automatically added
 	to the pairs list. So by default, |<...>| is tested only in html, but
@@ -117,92 +118,129 @@ Released under the [GNU General Public License](www.gnu.org/copyleft/gpl.html)
 DOC
 
 require 'optparse'
+require 'ostruct'
 
-number, input, latex, lineno,  s,  html,  test,  parenstext =
-    10, STDIN, false,      0, '', false, false, %q{{}[]()""“”''‘’}
+def help
+  system("echo \"#{Help}\" | less -P#{Myname}-#{Version.tr('.','·')}")
+end
 
-ARGV.options do |opts|
-  opts.banner = "#{MYNAME} - find mismatches of parentheses, braces, (angle) brackets, in texts\n"
-  opts.separator ''
-  opts.on('-h',
-    'print this help and exit') do
+# Option defaults:
+$o = OpenStruct.new(
+    :number => 10,
+     :input => STDIN,
+     :latex => false,
+    :lineno => 0,
+         :s => '',
+      :html => false,
+      :test => false,
+:parenstext => %q{{}[]()“”''«»""‘’}
+)
+
+OptionParser.new(
+   banner = <<~EOD,
+	#{Myname} A find mismatches of various brackets and quotes\n
+	Usage: match_parens [filename]\n
+	Options:
+	EOD
+   width = 15, # 2x8-1
+   indent = ''
+) do |opts|
+
+   opts.on('-h',
+      'print this help and exit'
+   ) do
       puts opts.to_s.sub(/^ *-I\n/,'').gsub(/                 /,'')
       exit
-    end
-  opts.on('-H','--help',
-    'print full documentation and exit') do
-      puts Help
+   end
+
+   opts.on('-H','--help',
+      'print full documentation via less and exit'
+   ) do
+      help
       exit
-    end
-  opts.on('-V','--version',
-    'print version and exit') do
+   end
+
+   opts.on('-V','--version',
+      'print version and exit'
+   ) do
       puts Version
       exit
-    end
-  opts.on('-l','--latex',
-    'convert ``...'' to “...” before testing') do
-      latex=true
-    end
-  opts.on('-n','--number=N',Integer,
-    "set number of mismatching characters shown to N (default: #{number})"
-  ) do |v|
-      number = v
-    end
-  opts.on('-p','--pairs=S',String,
-    "set matching pairs to S (default: #{parenstext})"
-  ) do |v|
-      parenstext = v
-    end
-  opts.on('--test',
-    'do an internal test and exit') do
-      input = DATA
-      test = true
-    end
-  opts.on('-I') do system("instscript #{MYNAME}"); exit; end
-  opts.parse!
-end or exit 1
+   end
 
-parenshtml = parenstext =~ /<>/ ? parenstext : parenstext + '<>'
-parens = parenstext
+   opts.on('-l','--latex',
+     'convert ``...'' to “...” before testing'
+   ) do
+      $o.latex=true
+   end
+
+   opts.on('-n','--number=N',Integer,
+     "set number of mismatching characters shown to N (default: #{$o.number})"
+   ) do |v|
+      $o.number = v
+   end
+
+   opts.on('-p','--pairs=S',String,
+     "set matching pairs to S (default: #{$o.parenstext})"
+   ) do |v|
+      $o.parenstext = v
+   end
+
+   opts.on('--test',
+     'do an internal test and exit'
+   ) do
+      $o.input = DATA
+      $o.test = true
+   end
+
+   opts.on('-I') do
+      system("instscript #{Myname}")
+      exit
+   end
+
+   opts.parse!
+end
+
+parenshtml = $o.parenstext =~ /<>/ ? $o.parenstext : $o.parenstext + '<>'
+parens = $o.parenstext
 
 arg = ARGV[0] || ''
 unless arg.empty?
-  test(?e,arg) or raise("file #{arg} does not exist")
-  test(?r,arg) or raise("file #{arg} is not readable")
-  input = File.new(arg)
+   test(?e,arg) or raise("file #{arg} does not exist")
+   test(?r,arg) or raise("file #{arg} is not readable")
+   $o.input = File.new(arg)
 end
-while x = input.gets()
-  # convert LaTeX's ``...'' to “...”
-  if latex
-    x = x.gsub(/``/,'“').gsub(/''/,'”')
-  end
+while x = $o.input.gets()
+   # convert LaTeX's ``...'' to “...”
+   if $o.latex
+      x = x.gsub(/``/,'“').gsub(/''/,'”')
+   end
 
-  # only inside html text we check <>, too:
-  if html && (x=~/^([# ]*=end)/ || x=~/<\/html>/i)
-    html = false
-    parens = parenstext
-  elsif x=~/^([# ]*=begin rdoc)/ || x=~/<html>/i
-    html = true
-    parens = parenshtml
-  end
-  # match any pair like (), {}, [], “”, <> in parens
-  re = Regexp.new(parens.scan(/../).join('|').gsub(/[{}()\[\]]/,'\\\\\&'))
+   # only inside html text we check <>, too:
+   if $o.html && (x=~/^([# ]*=end)/ || x=~/<\/html>/i)
+      $o.html = false
+      parens = $o.parenstext
+   elsif x=~/^([# ]*=begin rdoc)/ || x=~/<html>/i
+      $o.html = true
+      parens = parenshtml
+   end
+   # match any pair like (), {}, [], “”, <> in parens
+   re = Regexp.new(parens.scan(/../).join('|').gsub(/[{}()\[\]$]/,'\\\\\&'))
 
-  # move parens' characters into s
-  s << x.tr('^'+parens,'')
-  # remove matches from inside
-  while s.gsub!(re,'') do end
-  puts "%4d | %-*s | %s" % [lineno+=1,number,s.slice(0..number-1),x]
+   # move parens' characters into s
+   $o.s << x.tr('^'+parens,'')
+   # remove matches from inside
+   while $o.s.gsub!(re,'') do end
+   puts "%4d | %-*s | %s" % [$o.lineno+=1,$o.number,$o.s.slice(0..$o.number-1),x]
 end
 
-if test
-  if s != '“{”}'
-    raise("test failed! (final mismatch should be “{”})")
-  else
-    puts "test succeeded"
-  end
+if $o.test
+   if s != '“{”}'
+      raise("test failed! (final mismatch should be “{”})")
+   else
+      puts "test succeeded"
+   end
 else
-  exit s.empty? ? 0 : 1
+   exit $o.s.empty? ? 0 : 1
 end
 __END__
 This first line “{()}” has no mismatch

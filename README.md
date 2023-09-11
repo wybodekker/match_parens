@@ -5,7 +5,7 @@
 |    type | ruby
 |  author | Wybo Dekker
 |   email | wybo@dekkerdocumenten.nl
-| version | 1.43
+| version | 1.45
 | license | GNU General Public License
 
 Mismatches of parentheses, braces, (angle) brackets, especially in TeX
